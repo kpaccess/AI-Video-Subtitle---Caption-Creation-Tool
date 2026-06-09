@@ -3,8 +3,9 @@
 AI-powered subtitle and caption creation workspace for video creators.
 
 The app combines:
+
 - A React + Vite frontend for timeline editing, style controls, and preview
-- An Express server for Gemini-powered transcription and caption enhancement
+- An Express server for Gemini-powered transcription and caption enhancement with optional OpenAI fallback
 - Optional Android project files in the same repository for mobile-side experimentation
 
 ## Features
@@ -22,14 +23,15 @@ The app combines:
 
 - Frontend: React 19, TypeScript, Vite
 - Backend: Node.js, Express, TypeScript (tsx runtime)
-- AI: Google Gemini via `@google/genai`
+- AI: Google Gemini via `@google/genai` with optional OpenAI fallback for transcription/translation
 - Styling/UI: Tailwind CSS + custom CSS
 
 ## Prerequisites
 
 - Node.js 18+
 - npm 9+
-- A valid Gemini API key
+- A valid Gemini API key (recommended)
+- Optional: OpenAI API key for automatic fallback when Gemini is unavailable or rate-limited
 
 ## Environment Setup
 
@@ -37,6 +39,7 @@ Create a `.env` file in the repository root:
 
 ```env
 GEMINI_API_KEY=your_api_key_here
+OPENAI_API_KEY=optional_openai_key_for_fallback
 APP_API_KEY=optional_server_side_api_key
 MAX_REQUEST_BODY_MB=20
 MAX_INLINE_AUDIO_BYTES=15728640
@@ -51,8 +54,10 @@ VITE_APP_API_KEY=optional_server_side_api_key
 ```
 
 Notes:
+
 - The server loads environment variables using `dotenv`.
-- If the key is missing, API endpoints will return a configuration error.
+- If no AI provider key is available, API endpoints will return a configuration error.
+- `/api/transcribe` tries Gemini first. If Gemini quota/rate limits are hit and `OPENAI_API_KEY` exists, it automatically falls back to OpenAI.
 - If `APP_API_KEY` is set, all `/api/*` routes require `x-api-key`.
 
 ## Install
@@ -65,13 +70,14 @@ npm install
 
 ### Development (single port app)
 
-Start the Vite dev server:
+Start the Express + Vite dev server (includes `/api/*` routes):
 
 ```bash
 npm run dev
 ```
 
 Default URL:
+
 - `http://localhost:3000`
 
 ### Backend Entry (Express + Vite middleware)
@@ -96,25 +102,25 @@ npm run preview
 All endpoints are served from the same app origin.
 
 - `GET /api/health`
-   - Returns server status and whether `GEMINI_API_KEY` is configured.
+  - Returns server status and configured AI providers.
 
 - `POST /api/transcribe`
-   - Body fields:
-      - `fileData` (required, base64 data URL or base64 payload)
-      - `mimeType` (optional)
-      - `language` (optional)
-      - `removeFillerWords` (boolean)
-      - `smartPunctuation` (boolean)
-      - `speakerDetection` (boolean)
-   - Returns subtitle blocks with `id`, `startTime`, `endTime`, `text`, `speaker`.
+  - Body fields:
+    - `fileData` (required, base64 data URL or base64 payload)
+    - `mimeType` (optional)
+    - `language` (optional)
+    - `removeFillerWords` (boolean)
+    - `smartPunctuation` (boolean)
+    - `speakerDetection` (boolean)
+  - Returns subtitle blocks with `id`, `startTime`, `endTime`, `text`, `speaker`.
 
 - `POST /api/suggest-corrections`
-   - Body: `subtitles` array
-   - Returns AI suggestions: `originalText`, `suggestedText`, `reason`.
+  - Body: `subtitles` array
+  - Returns AI suggestions: `originalText`, `suggestedText`, `reason`.
 
 - `POST /api/clean-fillers`
-   - Body: `subtitles` array
-   - Returns cleaned subtitle text while preserving timing.
+  - Body: `subtitles` array
+  - Returns cleaned subtitle text while preserving timing.
 
 ## Project Structure
 
@@ -133,15 +139,15 @@ All endpoints are served from the same app origin.
 
 ## Troubleshooting
 
-- Server says API key is missing:
-   - Confirm `.env` exists in the root and contains `GEMINI_API_KEY`.
-   - Restart the running process after changing environment variables.
+- Server says AI provider key is missing:
+  - Confirm `.env` exists in the root and contains at least one key: `GEMINI_API_KEY` or `OPENAI_API_KEY`.
+  - Restart the running process after changing environment variables.
 
 - Large file upload errors:
-   - The server accepts JSON payloads up to 100 MB. Larger files should be compressed before upload.
+  - The server accepts JSON payloads up to 100 MB. Larger files should be compressed before upload.
 
 - Playback issues with some sample videos:
-   - The UI includes fallback behavior (WebM and virtual playback mode) for unsupported codecs.
+  - The UI includes fallback behavior (WebM and virtual playback mode) for unsupported codecs.
 
 ## License
 

@@ -1,4 +1,4 @@
-package com.example
+package com.captionflow.ai
 
 import android.os.Bundle
 import android.widget.Toast
@@ -30,7 +30,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.MyApplicationTheme
+import com.captionflow.ai.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -125,7 +125,7 @@ fun CaptionCompanionDashboard(modifier: Modifier = Modifier) {
                 .fillMaxWidth()
                 .padding(bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Between
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -200,7 +200,7 @@ fun CaptionCompanionDashboard(modifier: Modifier = Modifier) {
             ) {
                 for (i in 0 until 18) {
                     val factor = if (isPlaying) {
-                        (Math.sin((currentTime * 10f) + i).toFloat() + 1f) / 2f
+                        (Math.sin(((currentTime * 10f) + i).toDouble()).toFloat() + 1f) / 2f
                     } else {
                         0.25f
                     }
@@ -579,8 +579,9 @@ fun CaptionCompanionDashboard(modifier: Modifier = Modifier) {
                             label = { Text("Start Time (s)", fontSize = 10.sp) },
                             modifier = Modifier.weight(1f),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
-                                textColor = Color.White,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
                                 focusedBorderColor = Color(0xFF2563EB),
                                 unfocusedBorderColor = Color(0xFF334155)
                             )
@@ -592,8 +593,9 @@ fun CaptionCompanionDashboard(modifier: Modifier = Modifier) {
                             label = { Text("End Time (s)", fontSize = 10.sp) },
                             modifier = Modifier.weight(1f),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
-                                textColor = Color.White,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
                                 focusedBorderColor = Color(0xFF2563EB),
                                 unfocusedBorderColor = Color(0xFF334155)
                             )
@@ -605,8 +607,9 @@ fun CaptionCompanionDashboard(modifier: Modifier = Modifier) {
                         onValueChange = { inputSpeaker = it },
                         label = { Text("Speaker Name", fontSize = 10.sp) },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = TextFieldDefaults.outlinedTextFieldColors(
-                            textColor = Color.White,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
                             focusedBorderColor = Color(0xFF2563EB),
                             unfocusedBorderColor = Color(0xFF334155)
                         )
@@ -619,8 +622,9 @@ fun CaptionCompanionDashboard(modifier: Modifier = Modifier) {
                         modifier = Modifier // Fill and take most remaining space
                             .fillMaxWidth()
                             .height(60.dp),
-                        colors = TextFieldDefaults.outlinedTextFieldColors(
-                            textColor = Color.White,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
                             focusedBorderColor = Color(0xFF2563EB),
                             unfocusedBorderColor = Color(0xFF334155)
                         )

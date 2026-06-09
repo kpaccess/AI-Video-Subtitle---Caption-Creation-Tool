@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -196,7 +198,7 @@ const SAMPLE_PROJECTS: SampleProject[] = [
 ];
 
 export default function App() {
-  const apiKey = import.meta.env.VITE_APP_API_KEY as string | undefined;
+  const apiKey = process.env.NEXT_PUBLIC_APP_API_KEY as string | undefined;
 
   const getApiHeaders = (): Record<string, string> => {
     const headers: Record<string, string> = {
@@ -714,7 +716,6 @@ export default function App() {
   // Camera recording helpers
   const handleStartCamera = async () => {
     try {
-      setRecordedChunks([]);
       setCameraRecordingUrl(null);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,

@@ -451,6 +451,13 @@ export const transcribeFromPayload = async (payload: any) => {
 You are an expert, professional video transcriptionist, translator, and subtitler.
 Analyze the audio file and transcribe or translate all the spoken dialogue into the target subtitle language: ${normalizedLanguage}.
 
+CRITICAL TIMING REQUIREMENTS:
+- The output MUST contain accurate timing parameters for every single subtitle block.
+- 'startTime' and 'endTime' MUST be specified in SECONDS as floating-point numbers (e.g. 1.25, 4.80, 12.00) relative to the start of the audio file (0.00). Do NOT use milliseconds, frames, or string formats.
+- The timestamps must precisely align with when the speaker starts and stops speaking the words in the 'text' field.
+- Subtitle segments should generally be between 1.0 and 5.0 seconds long. Do not make segments too short (under 0.8s) or too long (over 7s) unless there is a single word or a continuous monologue.
+- If there is silence in the audio, do NOT generate subtitles for that silent period. Ensure 'startTime' of the next block starts when speech resumes.
+
 Configuration:
 - Target Subtitle Language: ${normalizedLanguage}
 - Translation Rule: If the spoken speech in the audio is in a different language than the target subtitle language (${normalizedLanguage}), you MUST translate the spoken dialogue into the target language (${normalizedLanguage}) for the generated subtitles. Do NOT output in the original spoken language if it differs from ${normalizedLanguage}.

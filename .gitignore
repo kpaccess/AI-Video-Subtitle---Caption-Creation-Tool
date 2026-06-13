@@ -21,6 +21,10 @@ node_modules/
 dist/
 app/release/
 .antigravity/
-./my-upload-key.jks
+my-upload-key.jks
 server.log
 test.log
+.gradle/
+web/.next/
+android/app/release/
+

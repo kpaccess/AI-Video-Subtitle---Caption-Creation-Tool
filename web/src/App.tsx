@@ -234,6 +234,7 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(15.0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [playLimitTime, setPlayLimitTime] = useState<number | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>(SAMPLE_PROJECTS[0].videoUrl);
   const [activeTab, setActiveTab] = useState<
     "ai" | "style" | "editor" | "smart"
@@ -502,6 +503,18 @@ export default function App() {
     }
   };
 
+  // Play a specific subtitle segment (line preview)
+  const handlePlaySegment = (sub: Subtitle) => {
+    const media = virtualVideoMode ? audioRef.current : videoRef.current;
+    if (media) {
+      handleSeek(sub.startTime);
+      setPlayLimitTime(sub.endTime);
+      media.play().then(() => {
+        setIsPlaying(true);
+      }).catch(err => console.warn("Play segment failed:", err));
+    }
+  };
+
   // Sync audio time when in virtual mode
   useEffect(() => {
     const audio = audioRef.current;
@@ -536,6 +549,44 @@ export default function App() {
     };
   }, [videoUrl, virtualVideoMode]);
 
+  // Smooth high-frequency playhead tracking to prevent subtitle/audio sync lag
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    let frameId: number;
+    const trackPlayhead = () => {
+      const media = virtualVideoMode ? audioRef.current : videoRef.current;
+      if (media) {
+        const time = media.currentTime;
+        setCurrentTime(time);
+
+        // Auto-pause if we have a play limit (for play segment preview)
+        if (playLimitTime !== null && time >= playLimitTime) {
+          media.pause();
+          setIsPlaying(false);
+          setPlayLimitTime(null);
+        }
+      }
+      frameId = requestAnimationFrame(trackPlayhead);
+    };
+
+    frameId = requestAnimationFrame(trackPlayhead);
+    return () => cancelAnimationFrame(frameId);
+  }, [isPlaying, virtualVideoMode, playLimitTime]);
+
+  // Auto-scroll active subtitle card into view in the editor list
+  useEffect(() => {
+    if (activeSub && activeTab === "editor") {
+      const activeCard = document.getElementById(`editor-card-${activeSub.id}`);
+      if (activeCard && subtitleListRef.current) {
+        activeCard.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+        });
+      }
+    }
+  }, [activeSub?.id, activeTab]);
+
   // Virtual Codec Simulation / Playback ticking simulator (only when audio isn't active/loaded)
   useEffect(() => {
     if (!virtualVideoMode || !isPlaying || isAudioLoaded) return;
@@ -554,6 +605,11 @@ export default function App() {
           setIsPlaying(false);
           return 0;
         }
+        if (playLimitTime !== null && next >= playLimitTime) {
+          setIsPlaying(false);
+          setPlayLimitTime(null);
+          return playLimitTime;
+        }
         return next;
       });
 
@@ -562,7 +618,7 @@ export default function App() {
 
     frameId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameId);
-  }, [virtualVideoMode, isPlaying, playbackSpeed, duration, isAudioLoaded]);
+  }, [virtualVideoMode, isPlaying, playbackSpeed, duration, isAudioLoaded, playLimitTime]);
 
   // Timeline mouse seeking
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -1155,7 +1211,7 @@ export default function App() {
     const wasPlaying = !video.paused;
 
     video.pause();
-    video.muted = true;
+    video.muted = false;
     video.currentTime = 0;
 
     const vWidth = video.videoWidth || 640;
@@ -1259,8 +1315,8 @@ export default function App() {
 
           ctx.drawImage(video, 0, 0, vWidth, vHeight);
 
-          const containerWidth = videoContainerRef.current?.clientWidth || 640;
-          const scale = vWidth / containerWidth;
+          const containerWidth = videoContainerRef.current?.clientWidth || vWidth || 640;
+          const scale = containerWidth > 0 ? vWidth / containerWidth : 1;
 
           drawCaptionsOnCanvas(ctx, video.currentTime, vWidth, vHeight, scale);
 
@@ -2046,6 +2102,7 @@ export default function App() {
               className="w-full h-full object-contain cursor-pointer aspect-video"
               playsInline
               preload="auto"
+              crossOrigin="anonymous"
             />
 
             {/* Fallback audio element for virtual simulator mode */}
@@ -3260,7 +3317,14 @@ export default function App() {
                       return (
                         <div
                           key={sub.id}
-                          className={`p-3.5 rounded-xl border transition-all flex flex-col gap-3 group relative ${
+                          id={`editor-card-${sub.id}`}
+                          onClick={() => {
+                            if (selectedSubId !== sub.id) {
+                              setSelectedSubId(sub.id);
+                              handleSeek(sub.startTime);
+                            }
+                          }}
+                          className={`p-3.5 rounded-xl border transition-all flex flex-col gap-3 group relative cursor-pointer ${
                             isSelected
                               ? "bg-slate-900 border-blue-500 shadow-md shadow-blue-500/5"
                               : isActive
@@ -3278,9 +3342,10 @@ export default function App() {
 
                               {/* Speaker renaming button badge */}
                               <button
-                                onClick={() =>
-                                  renameSpeakerGlobally(sub.speaker)
-                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  renameSpeakerGlobally(sub.speaker);
+                                }}
                                 className="text-[10px] bg-indigo-900/30 text-indigo-300 font-bold px-2 py-0.5 rounded flex items-center gap-1 border border-indigo-950/50 hover:bg-indigo-800/40"
                                 title="Click to rename this speaker globally across all segments"
                               >
@@ -3290,10 +3355,24 @@ export default function App() {
                             </div>
 
                             {/* Timing indicators */}
-                            <div className="flex items-center gap-1 select-none font-mono text-[10px]">
+                            <div className="flex items-center gap-2 select-none font-mono text-[10px]">
+                              {/* Play segment button */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePlaySegment(sub);
+                                }}
+                                className="p-1 text-emerald-400 hover:text-emerald-300 bg-emerald-950/40 border border-emerald-900/60 rounded transition-all flex items-center gap-1 cursor-pointer"
+                                title="Play this specific segment only"
+                              >
+                                <Play className="w-2.5 h-2.5 fill-current" />
+                                <span>Play</span>
+                              </button>
+
                               {/* Clickable Seek button */}
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   handleSeek(sub.startTime);
                                   setSelectedSubId(sub.id);
                                 }}
@@ -3305,13 +3384,16 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* Editable Main Subtitle Textarea box */}
+                           {/* Editable Main Subtitle Textarea box */}
                           <textarea
                             value={sub.text}
                             onChange={(e) =>
                               handleUpdateSubText(sub.id, e.target.value)
                             }
-                            onFocus={() => setSelectedSubId(sub.id)}
+                            onFocus={() => {
+                              setSelectedSubId(sub.id);
+                              handleSeek(sub.startTime);
+                            }}
                             rows={1}
                             className="w-full bg-slate-950 border border-slate-900 hover:border-slate-800 text-xs px-2.5 py-1.5 rounded-lg text-slate-100 outline-none focus:border-blue-500 resize-none"
                             placeholder="Enter captions line dialogue..."
@@ -3329,13 +3411,17 @@ export default function App() {
                                   type="number"
                                   step="0.05"
                                   value={sub.startTime}
-                                  onChange={(e) =>
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
                                     handleUpdateSubTimes(
                                       sub.id,
-                                      parseFloat(e.target.value),
+                                      val,
                                       sub.endTime,
-                                    )
-                                  }
+                                    );
+                                    if (!isNaN(val)) {
+                                      handleSeek(val);
+                                    }
+                                  }}
                                   className="w-[50px] bg-slate-950 border border-slate-900 text-[10px] p-1 rounded font-mono text-center outline-none"
                                 />
                               </div>
@@ -3364,7 +3450,10 @@ export default function App() {
                             {/* Utility segment buttons */}
                             <div className="flex items-center gap-1 bg-slate-950/60 p-0.5 rounded-lg border border-slate-900">
                               <button
-                                onClick={() => handleSplitSegment(sub)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSplitSegment(sub);
+                                }}
                                 className="p-1.5 hover:bg-slate-900 rounded text-slate-400 hover:text-blue-300"
                                 title="Split segment in half"
                               >
@@ -3372,7 +3461,10 @@ export default function App() {
                               </button>
                               {idx < subtitles.length - 1 && (
                                 <button
-                                  onClick={() => handleMergeSegment(sub)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMergeSegment(sub);
+                                  }}
                                   className="p-1.5 hover:bg-slate-900 rounded text-slate-400 hover:text-pink-300"
                                   title="Merge with next segment"
                                 >
@@ -3380,9 +3472,10 @@ export default function App() {
                                 </button>
                               )}
                               <button
-                                onClick={() =>
-                                  handleDeleteSubtitleBlock(sub.id)
-                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSubtitleBlock(sub.id);
+                                }}
                                 className="p-1.5 hover:bg-slate-900 rounded text-slate-400 hover:text-red-400"
                                 title="Delete caption block entirely"
                               >
@@ -3483,34 +3576,58 @@ export default function App() {
                       </span>
 
                       <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1">
-                        {aiSuggestions.map((sug) => (
-                          <div
-                            key={sug.id}
-                            className="p-3 bg-slate-900 border border-slate-850 rounded-xl flex flex-col gap-1.5"
-                          >
-                            <p className="text-[10px] text-slate-400 leading-relaxed italic border-l-2 border-indigo-500 pl-2">
-                              Reason: {sug.reason}
-                            </p>
-                            <div className="flex items-center justify-between gap-3 text-xs pt-1">
-                              <div>
-                                <span className="line-through text-red-500 opacity-60 mr-2 font-mono">
-                                  {sug.originalText}
+                        {aiSuggestions.map((sug) => {
+                          const targetSub = subtitles.find(s => s.id === sug.id);
+                          const subIndex = subtitles.findIndex(s => s.id === sug.id) + 1;
+
+                          return (
+                            <div
+                              key={sug.id}
+                              className="p-3 bg-slate-900 border border-slate-850 rounded-xl flex flex-col gap-1.5"
+                            >
+                              <div className="flex items-center justify-between gap-2 border-b border-slate-850 pb-1.5">
+                                <span className="text-[10px] font-mono font-bold bg-slate-850 px-1.5 py-0.5 rounded text-slate-350">
+                                  #{subIndex} {targetSub ? `(${targetSub.speaker})` : ""}
                                 </span>
-                                <span className="text-green-400 font-bold font-semibold font-mono">
-                                  {sug.suggestedText}
-                                </span>
+                                {targetSub && (
+                                  <button
+                                    onClick={() => {
+                                      setActiveTab("editor");
+                                      setSelectedSubId(sug.id);
+                                      handlePlaySegment(targetSub);
+                                    }}
+                                    className="text-[9px] text-blue-400 hover:text-blue-300 flex items-center gap-1 font-mono cursor-pointer"
+                                    title="Jump to card in editor and play audio segment"
+                                  >
+                                    <Sparkles className="w-2.5 h-2.5" />
+                                    Locate & Play ({targetSub.startTime}s)
+                                  </button>
+                                )}
                               </div>
-                              <button
-                                onClick={() =>
-                                  applyCorrection(sug.id, sug.suggestedText)
-                                }
-                                className="px-2 py-0.5 bg-green-950 text-green-300 hover:bg-green-900/60 rounded-md text-[10px] font-bold transition-all"
-                              >
-                                Accept Change
-                              </button>
+                              <p className="text-[10px] text-slate-450 leading-relaxed italic border-l-2 border-indigo-500 pl-2">
+                                Reason: {sug.reason}
+                              </p>
+                              <div className="flex items-center justify-between gap-3 text-xs pt-1">
+                                <div>
+                                  <span className="line-through text-red-500 opacity-60 mr-2 font-mono">
+                                    {sug.originalText}
+                                  </span>
+                                  <span className="text-green-400 font-bold font-semibold font-mono">
+                                    {sug.suggestedText}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() =>
+                                    applyCorrection(sug.id, sug.suggestedText)
+                                  }
+                                  className="px-2 py-0.5 bg-green-950 text-green-300 hover:bg-green-900/60 rounded-md text-[10px] font-bold transition-all cursor-pointer"
+                                >
+                                  Accept Change
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   ) : (
